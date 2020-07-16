@@ -14,7 +14,7 @@ The following prerequisites are needed:
         ./bin/istioctl manifest apply --set profile=demo
         ```
     
-The rest of this document describes the remaining setup of the demo in steps. The entire process can also by applied at once with [`./apply-all.sh`](apply-all.sh). 
+**The rest of this document describes the remaining setup of the demo in steps. The entire process can also by applied at once with [`./apply-all.sh`](apply-all.sh).**
 
 ## Services
 Before we configure Istio and OPA, let us deploy a couple of services for the example:

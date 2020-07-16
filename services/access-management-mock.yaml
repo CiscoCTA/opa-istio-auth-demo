@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: access-management
+  labels:
+    app: access-management
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: access-management
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: access-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: access-management
+  template:
+    metadata:
+      labels:
+        app: access-management
+    spec:
+      containers:
+        - image: rodolpheche/wiremock:latest-alpine
+          imagePullPolicy: IfNotPresent
+          name: wiremock
+          args:
+            - "--verbose"
+          volumeMounts:
+            - name: stubs
+              mountPath: '/home/wiremock/mappings'
+      volumes:
+        - name: stubs
+          configMap:
+            name: access-management-mappings
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: access-management-mappings
+data:
+  valid-token-1.json: |
+    {
+      "request": {
+        "method": "GET",
+        "url": "/auth/api-clients/me",
+        "headers": {
+          "Authorization": {
+            "equalTo" : "valid-token-1"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "jsonBody": {
+          "apiClientId": "8bb18d14-696d-4858-856b-2d610a48b13c",
+          "identity": {
+            "username": "user1"
+          }
+        }
+      }
+    }
+  invalid-token.json: |
+    {
+      "priority": 10,
+      "request": {
+        "method": "GET",
+        "url": "/auth/api-clients/me"
+      },
+      "response": {
+        "status": 401,
+        "body": "Invalid token\n"
+      }
+    }

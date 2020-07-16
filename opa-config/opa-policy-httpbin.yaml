@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-policy-httpbin
+data:
+  policy.rego: |
+    package istio.authz
+
+    # Parse the identity data
+    import input.attributes.metadata_context as metadata
+    api_client := json.unmarshal(metadata["filter_metadata"]["envoy.lua"]["fields"]["identity-json"]["Kind"]["StringValue"])
+
+    # Example of a custom rule
+    default has_valid_identity = false
+    has_valid_identity {
+      count(api_client.apiClientId) > 0
+    }
+
+    # Deny by default
+    default allow = {"allowed": false, "reason": "deny-by-default"}
+
+    # Whitelisting allowed requests
+    allow = true {
+      # Anyone can access /anything/unprotected
+      input.attributes.request.http.path = "/anything/unprotected"
+    }
+    else = true {
+      # Users with valid token can access /anything/protected
+      input.attributes.request.http.path = "/anything/protected"
+      has_valid_identity
+    }
+    else = true {
+      # Users whose username matches the path can access /anything/user/<username>
+      input.parsed_path = ["anything", "user", api_client.identity.username]
+      has_valid_identity
+    }

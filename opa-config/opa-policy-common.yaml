@@ -1,0 +1,13 @@
+# Common rego module for use in individual OPA policies
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-policy-common
+data:
+  log-mask.rego: |
+    package system.log
+
+    # Exclude sensitive values from decision logs
+    mask["/input/attributes/request/http/headers"]
+    mask["/input/attributes/request/http/body"]
+    mask["/input/parsed_body"]

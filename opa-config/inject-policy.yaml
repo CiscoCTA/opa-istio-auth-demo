@@ -1,0 +1,89 @@
+# Adapted version of https://raw.githubusercontent.com/open-policy-agent/opa-istio-plugin/f1d4c7f6deba9212c1a125b6a43af25e991ad936/quick_start.yaml
+
+############################################################
+# OPA admission control policy for injecting OPA-Istio.
+############################################################
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: opa-istio
+  name: inject-policy
+data:
+  inject.rego: |
+    package istio
+
+    inject = {
+      "apiVersion": "admission.k8s.io/v1beta1",
+      "kind": "AdmissionReview",
+      "response": {
+        "allowed": true,
+        "patchType": "JSONPatch",
+        "patch": base64url.encode(json.marshal(patch)),
+      },
+    }
+
+    patch = [{
+      "op": "add",
+      "path": "/spec/containers/-",
+      "value": opa_container,
+    }, {
+      "op": "add",
+      "path": "/spec/volumes/-",
+      "value": opa_config_volume,
+    }, {
+      "op": "add",
+      "path": "/spec/volumes/-",
+      "value": opa_common_volume,
+    }, {
+      "op": "add",
+      "path": "/spec/volumes/-",
+      "value": opa_policy_volume,
+    }]
+
+    opa_container = {
+      "image": "openpolicyagent/opa:0.19.1-istio",
+      "name": "opa-istio",
+      "args": [
+        "run",
+        "--server",
+        "--config-file=/config/config.yaml",
+        "/common/log-mask.rego",
+        "/policy/policy.rego",
+      ],
+      "volumeMounts": [{
+        "mountPath": "/config",
+        "name": "opa-istio-config",
+      }, {
+        "mountPath": "/policy",
+        "name": "opa-policy"
+      }, {
+        "mountPath": "/common",
+        "name": "opa-policy-common",
+      }],
+      "readinessProbe": {
+        "httpGet": {
+          "path": "/health?bundles",
+          "port": 8181,
+        },
+      },
+    }
+
+    opa_config_volume = {
+      "name": "opa-istio-config",
+      "configMap": {"name": "opa-istio-config"},
+    }
+
+    opa_policy_volume = {
+      "name": "opa-policy",
+      "configMap": {"name": policy_config_map},
+    }
+
+    opa_common_volume = {
+      "name": "opa-policy-common",
+      "configMap": {"name": "opa-policy-common"},
+    }
+
+    default policy_config_map = "opa-policy-default"
+    policy_config_map = input.request.object.metadata.labels["opa-policy-config-map-name"] {
+      count(input.request.object.metadata.labels["opa-policy-config-map-name"]) > 0
+    }

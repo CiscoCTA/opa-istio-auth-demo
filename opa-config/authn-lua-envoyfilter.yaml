@@ -1,0 +1,50 @@
+############################################################
+# Envoy filter that translates token to client identity
+############################################################
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: authn-lua
+  namespace: istio-system
+spec:
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.http_connection_manager"
+              subFilter:
+                name: "envoy.ext_authz"
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.lua
+          config:
+            inline_code: |
+              function envoy_on_request(request_handle)
+                local authorization = request_handle:headers():get("Authorization") or ""
+                -- do not apply when token is missing or for the token translation endpoint itself to prevent infinite recursion
+                if authorization ~= "" and not (
+                  request_handle:headers():get(":authority") == "access-management.default.svc.cluster.local" and
+                  request_handle:headers():get(":path") == "/auth/api-clients/me"
+                ) then
+                  -- Use access-management service to translate the token to client identity
+                  local auth_request_body = nil
+                  local authn_request_timeout = 2000
+                  local authn_headers, authn_body = request_handle:httpCall(
+                    "outbound|8080||access-management.default.svc.cluster.local",
+                    {
+                      [":method"] = "GET",
+                      [":path"] = "/auth/api-clients/me",
+                      [":authority"] = "access-management.default.svc.cluster.local",
+                      ["Authorization"] = authorization
+                    },
+                    auth_request_body,
+                    authn_request_timeout
+                  )
+                  -- Attach the identity associated with the token to the request metadata
+                  request_handle:streamInfo():dynamicMetadata():set("envoy.lua", "identity-json", authn_body)
+                end
+              end

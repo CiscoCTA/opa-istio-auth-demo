@@ -3,6 +3,7 @@ kind: ConfigMap
 metadata:
   name: opa-policy-httpbin
 data:
+  # (The tpl function can be used to extract the policy to a file rather than inline it - see https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function)
   policy.rego: |
     package istio.authz
 

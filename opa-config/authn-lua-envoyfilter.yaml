@@ -22,6 +22,7 @@ spec:
         value:
           name: envoy.lua
           config:
+            # (The tpl function can be used to extract the script to a file rather than inline it - see https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function)
             inline_code: |
               function envoy_on_request(request_handle)
                 local authorization = request_handle:headers():get("Authorization") or ""
